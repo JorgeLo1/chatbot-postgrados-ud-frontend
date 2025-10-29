@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Send, Bot, User, Loader, RefreshCw, Book, ExternalLink, ChevronRight } from 'lucide-react';
 
-const RASA_API = import.meta.env.VITE_RASA_API || '/api';
+// En producción usa las rutas del servidor Express, en desarrollo usa las de Vite
+const API_BASE = import.meta.env.PROD ? '' : import.meta.env.VITE_RASA_API || '/api';
 
 export default function ChatbotFrontend() {
   const [messages, setMessages] = useState([]);
@@ -13,6 +14,22 @@ export default function ChatbotFrontend() {
   const messagesEndRef = useRef(null);
 
   useEffect(() => {
+    // Generar ID de sesión al iniciar
+    const newId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    setSessionId(newId);
+    
+    // Verificar API al iniciar
+    checkApiStatus();
+    
+    // Mensaje de bienvenida
+    setMessages([{
+      text: '¡Bienvenido al Chatbot de Postgrados UD! 🎓\n\n¿En qué puedo ayudarte hoy?',
+      sender: 'bot',
+      timestamp: new Date().toLocaleTimeString()
+    }]);
+  }, []);
+
+  useEffect(() => {
     scrollToBottom();
   }, [messages]);
 
@@ -22,7 +39,7 @@ export default function ChatbotFrontend() {
 
   const checkApiStatus = async () => {
     try {
-      const response = await fetch(`${RASA_API}/`, {
+      const response = await fetch(`${API_BASE}/api/`, {
         method: 'GET',
         headers: { 'Accept': 'application/json' }
       });
@@ -54,7 +71,7 @@ export default function ChatbotFrontend() {
     setLoading(true);
 
     try {
-      const response = await fetch(`${RASA_API}/webhooks/rest/webhook`, {
+      const response = await fetch(`${API_BASE}/api/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -82,6 +99,7 @@ export default function ChatbotFrontend() {
         }));
         
         setMessages(prev => [...prev, ...botMessages]);
+        setApiStatus('online');
       } else {
         setMessages(prev => [...prev, {
           text: 'No recibí respuesta del servidor. ¿Puedes intentar de nuevo?',
@@ -92,7 +110,7 @@ export default function ChatbotFrontend() {
     } catch (error) {
       console.error('Error sending message:', error);
       setMessages(prev => [...prev, {
-        text: `❌ Error de conexión: ${error.message}\n\nVerifica que el servidor Rasa esté corriendo en ${RASA_API}`,
+        text: `❌ Error de conexión: ${error.message}\n\nPor favor, intenta de nuevo en unos momentos.`,
         sender: 'bot',
         timestamp: new Date().toLocaleTimeString()
       }]);
@@ -303,11 +321,11 @@ export default function ChatbotFrontend() {
             <div className="bg-white rounded-xl shadow-lg p-4">
               <h3 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
                 <Book className="w-4 h-4 text-blue-600" />
-                API Info
+                Estado del Sistema
               </h3>
               <div className="space-y-2 text-xs">
                 <div>
-                  <label className="text-gray-600 font-medium">Estado:</label>
+                  <label className="text-gray-600 font-medium">Estado API:</label>
                   <div className={`mt-1 px-2 py-1.5 rounded font-semibold ${
                     apiStatus === 'online' ? 'bg-green-100 text-green-700' :
                     apiStatus === 'offline' ? 'bg-red-100 text-red-700' :
@@ -317,23 +335,20 @@ export default function ChatbotFrontend() {
                   </div>
                 </div>
 
+                <div>
+                  <label className="text-gray-600 font-medium">Session ID:</label>
+                  <div className="mt-1 px-2 py-1.5 bg-gray-100 rounded text-xs font-mono break-all">
+                    {sessionId.substring(0, 20)}...
+                  </div>
+                </div>
+
                 <button
                   onClick={checkApiStatus}
                   className="w-full mt-2 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors flex items-center justify-center gap-2 text-xs"
                 >
                   <RefreshCw className="w-3 h-3" />
-                  Verificar
+                  Verificar Conexión
                 </button>
-
-                <a
-                  href={`${RASA_API}/docs`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="w-full mt-1 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center justify-center gap-2 text-xs block text-center"
-                >
-                  <ExternalLink className="w-3 h-3" />
-                  Swagger UI
-                </a>
               </div>
             </div>
 
@@ -391,7 +406,7 @@ export default function ChatbotFrontend() {
 
       {/* Footer - Altura fija */}
       <div className="flex-none py-2 text-center text-xs text-gray-600 bg-white/50">
-        <p>🎓 Universidad Distrital • Rasa 3.6</p>
+        <p>🎓 Universidad Distrital • Rasa 3.6 • {import.meta.env.MODE === 'production' ? '🚀 Producción' : '🔧 Desarrollo'}</p>
       </div>
     </div>
   );
