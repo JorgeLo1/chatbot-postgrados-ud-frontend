@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Send, Bot, User, Loader, RefreshCw, Book, ExternalLink, ChevronRight } from 'lucide-react';
 
-const RASA_API = import.meta.env.VITE_RASA_API || 'http://149.130.173.156:5005';
+const RASA_API = import.meta.env.VITE_RASA_API || '/api';
 
 export default function ChatbotFrontend() {
   const [messages, setMessages] = useState([]);
