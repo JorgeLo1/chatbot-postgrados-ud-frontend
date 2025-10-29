@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Send, Bot, User, Loader, RefreshCw, Book, ExternalLink, ChevronRight } from 'lucide-react';
+#ajustes
 
-// En producción usa las rutas del servidor Express, en desarrollo usa las de Vite
+import React, { useState, useEffect, useRef } from 'react';
+import { Send, Bot, User, Loader, RefreshCw, Book, ChevronRight, X } from 'lucide-react';
+
 const API_BASE = import.meta.env.PROD ? '' : import.meta.env.VITE_RASA_API || '/api';
 
 export default function ChatbotFrontend() {
@@ -10,47 +11,24 @@ export default function ChatbotFrontend() {
   const [loading, setLoading] = useState(false);
   const [sessionId, setSessionId] = useState('');
   const [apiStatus, setApiStatus] = useState('checking');
-  const [showSidebar, setShowSidebar] = useState(true);
+  const [showSidebar, setShowSidebar] = useState(false);
   const messagesEndRef = useRef(null);
 
   useEffect(() => {
-    // Generar ID de sesión al iniciar
     const newId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     setSessionId(newId);
-    
-    // Verificar API al iniciar
     checkApiStatus();
-    
-    // Mensaje de bienvenida
-    setMessages([{
-      text: '¡Bienvenido al Chatbot de Postgrados UD! 🎓\n\n¿En qué puedo ayudarte hoy?',
-      sender: 'bot',
-      timestamp: new Date().toLocaleTimeString()
-    }]);
   }, []);
 
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+  useEffect(() => scrollToBottom(), [messages]);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
+  const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
 
   const checkApiStatus = async () => {
     try {
-      const response = await fetch(`${API_BASE}/api/`, {
-        method: 'GET',
-        headers: { 'Accept': 'application/json' }
-      });
-      
-      if (response.ok) {
-        setApiStatus('online');
-      } else {
-        setApiStatus('error');
-      }
-    } catch (error) {
-      console.error('Error checking API:', error);
+      const response = await fetch(`${API_BASE}/api/`, { method: 'GET' });
+      setApiStatus(response.ok ? 'online' : 'error');
+    } catch {
       setApiStatus('offline');
     }
   };
@@ -59,58 +37,35 @@ export default function ChatbotFrontend() {
     e.preventDefault();
     if (!input.trim() || loading) return;
 
-    const userMessage = {
-      text: input,
-      sender: 'user',
-      timestamp: new Date().toLocaleTimeString()
-    };
-
+    const userMessage = { text: input, sender: 'user', timestamp: new Date().toLocaleTimeString() };
     setMessages(prev => [...prev, userMessage]);
-    const messageToSend = input;
     setInput('');
     setLoading(true);
 
     try {
-      const response = await fetch(`${API_BASE}/api/chat`, {
+      const res = await fetch(`${API_BASE}/api/chat`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        },
-        body: JSON.stringify({
-          sender: sessionId,
-          message: messageToSend
-        })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sender: sessionId, message: input })
       });
 
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
 
-      const data = await response.json();
-      
-      if (data && data.length > 0) {
-        const botMessages = data.map(msg => ({
+      if (data?.length) {
+        const botMsgs = data.map(msg => ({
           text: msg.text || msg.custom?.text || 'Sin respuesta',
           sender: 'bot',
           timestamp: new Date().toLocaleTimeString(),
           buttons: msg.buttons || [],
           image: msg.image || null
         }));
-        
-        setMessages(prev => [...prev, ...botMessages]);
+        setMessages(prev => [...prev, ...botMsgs]);
         setApiStatus('online');
-      } else {
-        setMessages(prev => [...prev, {
-          text: 'No recibí respuesta del servidor. ¿Puedes intentar de nuevo?',
-          sender: 'bot',
-          timestamp: new Date().toLocaleTimeString()
-        }]);
       }
-    } catch (error) {
-      console.error('Error sending message:', error);
+    } catch (err) {
       setMessages(prev => [...prev, {
-        text: `❌ Error de conexión: ${error.message}\n\nPor favor, intenta de nuevo en unos momentos.`,
+        text: `❌ Error de conexión: ${err.message}\n\nIntenta de nuevo más tarde.`,
         sender: 'bot',
         timestamp: new Date().toLocaleTimeString()
       }]);
@@ -120,16 +75,15 @@ export default function ChatbotFrontend() {
     }
   };
 
-  const handleButtonClick = (payload) => {
-    setInput(payload);
-    setTimeout(() => {
-      document.getElementById('message-input')?.focus();
-    }, 100);
+  const handleKeyPress = e => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage(e);
+    }
   };
 
   const resetChat = () => {
-    const newId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    setSessionId(newId);
+    setSessionId(`user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`);
     setMessages([{
       text: '¡Conversación reiniciada! 🔄\n\n¿En qué puedo ayudarte?',
       sender: 'bot',
@@ -137,277 +91,210 @@ export default function ChatbotFrontend() {
     }]);
   };
 
-  const getStatusColor = () => {
-    switch (apiStatus) {
-      case 'online': return 'bg-green-500';
-      case 'offline': return 'bg-red-500';
-      case 'error': return 'bg-yellow-500';
-      default: return 'bg-gray-400';
-    }
-  };
+  const getStatusColor = () => ({
+    online: 'bg-green-500',
+    offline: 'bg-red-500',
+    error: 'bg-yellow-500',
+    checking: 'bg-gray-400'
+  }[apiStatus]);
 
-  const getStatusText = () => {
-    switch (apiStatus) {
-      case 'online': return 'Conectado';
-      case 'offline': return 'Desconectado';
-      case 'error': return 'Error';
-      default: return 'Verificando...';
-    }
-  };
-
-  const handleKeyPress = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage(e);
-    }
-  };
+  const getStatusText = () => ({
+    online: 'Conectado',
+    offline: 'Desconectado',
+    error: 'Error',
+    checking: 'Verificando...'
+  }[apiStatus]);
 
   return (
-    <div className="h-screen w-screen overflow-hidden bg-gradient-to-br from-blue-50 to-indigo-100 flex flex-col">
-      {/* Header - Altura fija */}
-      <div className="flex-none bg-white shadow-lg border-b">
-        <div className="max-w-7xl mx-auto px-4 py-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="bg-gradient-to-br from-blue-600 to-indigo-700 p-2 rounded-lg">
-                <Bot className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <h1 className="text-lg font-bold text-gray-800">
-                  Chatbot Postgrados UD
-                </h1>
-                <div className="flex items-center gap-2">
-                  <div className={`w-2 h-2 rounded-full ${getStatusColor()} animate-pulse`} />
-                  <span className="text-xs text-gray-600">{getStatusText()}</span>
-                </div>
-              </div>
-            </div>
-            
-            <div className="flex gap-2">
-              <button
-                onClick={resetChat}
-                className="flex items-center gap-1 px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors text-sm"
-                title="Reiniciar conversación"
-              >
-                <RefreshCw className="w-4 h-4" />
-                <span className="hidden sm:inline">Reiniciar</span>
-              </button>
-              
-              <button
-                onClick={() => setShowSidebar(!showSidebar)}
-                className="lg:hidden flex items-center gap-1 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm"
-              >
-                <ChevronRight className={`w-4 h-4 transition-transform ${showSidebar ? 'rotate-180' : ''}`} />
-              </button>
+    <div className="h-screen w-screen flex flex-col bg-gradient-to-br from-blue-50 to-indigo-100 overflow-hidden">
+      {/* HEADER */}
+      <header className="flex-none bg-white shadow-md border-b px-4 py-3 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="bg-gradient-to-br from-blue-600 to-indigo-700 p-2 rounded-lg">
+            <Bot className="w-6 h-6 text-white" />
+          </div>
+          <div>
+            <h1 className="text-base sm:text-lg font-bold text-gray-800">Chatbot Postgrados UD</h1>
+            <div className="flex items-center gap-2">
+              <div className={`w-2 h-2 rounded-full ${getStatusColor()} animate-pulse`} />
+              <span className="text-xs text-gray-600">{getStatusText()}</span>
             </div>
           </div>
         </div>
-      </div>
+        <div className="flex gap-2">
+          <button
+            onClick={resetChat}
+            className="flex items-center gap-1 px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm"
+          >
+            <RefreshCw className="w-4 h-4" />
+            <span className="hidden sm:inline">Reiniciar</span>
+          </button>
+          <button
+            onClick={() => setShowSidebar(true)}
+            className="lg:hidden flex items-center gap-1 px-3 py-2 bg-blue-600 text-white rounded-lg text-sm"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
+      </header>
 
-      {/* Contenido Principal - Ocupa el espacio restante */}
-      <div className="flex-1 overflow-hidden">
-        <div className="max-w-7xl mx-auto h-full px-4 py-4 flex gap-4">
-          {/* Panel de Chat - Flex grow */}
-          <div className="flex-1 flex flex-col bg-white rounded-xl shadow-lg overflow-hidden">
-            {/* Área de Mensajes - Crece y tiene scroll interno */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gradient-to-b from-gray-50 to-white">
-              {messages.map((msg, idx) => (
-                <div
-                  key={idx}
-                  className={`flex gap-2 ${msg.sender === 'user' ? 'flex-row-reverse' : 'flex-row'}`}
-                >
-                  {/* Avatar */}
-                  <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
-                    msg.sender === 'user' 
-                      ? 'bg-blue-600' 
-                      : 'bg-gradient-to-br from-indigo-600 to-purple-700'
+      {/* MAIN CONTENT */}
+      <main className="flex-1 flex flex-col lg:flex-row overflow-hidden p-3 sm:p-4 gap-4">
+        {/* CHAT PANEL */}
+        <div className="flex-1 flex flex-col bg-white rounded-xl shadow-lg overflow-hidden">
+          {/* Messages */}
+          <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 bg-gradient-to-b from-gray-50 to-white">
+            {messages.map((msg, i) => (
+              <div key={i} className={`flex gap-2 ${msg.sender === 'user' ? 'flex-row-reverse' : ''}`}>
+                <div className={`w-8 h-8 flex items-center justify-center rounded-full ${
+                  msg.sender === 'user' ? 'bg-blue-600' : 'bg-gradient-to-br from-indigo-600 to-purple-700'
+                }`}>
+                  {msg.sender === 'user' ? <User className="w-4 h-4 text-white" /> : <Bot className="w-4 h-4 text-white" />}
+                </div>
+                <div className={`flex flex-col max-w-[85%] sm:max-w-[70%] ${msg.sender === 'user' ? 'items-end' : ''}`}>
+                  <div className={`rounded-xl px-3 py-2 ${
+                    msg.sender === 'user'
+                      ? 'bg-blue-600 text-white rounded-tr-none'
+                      : 'bg-white border border-gray-200 text-gray-800 rounded-tl-none shadow-sm'
                   }`}>
-                    {msg.sender === 'user' ? (
-                      <User className="w-4 h-4 text-white" />
-                    ) : (
-                      <Bot className="w-4 h-4 text-white" />
+                    <p className="whitespace-pre-wrap text-sm leading-relaxed">{msg.text}</p>
+                    {msg.image && <img src={msg.image} alt="Respuesta" className="mt-2 rounded-lg max-w-full" />}
+                    {msg.buttons?.length > 0 && (
+                      <div className="mt-2 space-y-1">
+                        {msg.buttons.map((b, j) => (
+                          <button
+                            key={j}
+                            onClick={() => setInput(b.payload)}
+                            className="w-full px-2 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg text-xs"
+                          >
+                            {b.title}
+                          </button>
+                        ))}
+                      </div>
                     )}
                   </div>
-
-                  {/* Message Bubble */}
-                  <div className={`flex flex-col max-w-[70%] ${msg.sender === 'user' ? 'items-end' : 'items-start'}`}>
-                    <div className={`rounded-xl px-3 py-2 ${
-                      msg.sender === 'user'
-                        ? 'bg-blue-600 text-white rounded-tr-none'
-                        : 'bg-white border border-gray-200 text-gray-800 rounded-tl-none shadow-sm'
-                    }`}>
-                      <p className="whitespace-pre-wrap text-sm leading-relaxed">
-                        {msg.text}
-                      </p>
-                      
-                      {msg.image && (
-                        <img 
-                          src={msg.image} 
-                          alt="Response" 
-                          className="mt-2 rounded-lg max-w-full"
-                        />
-                      )}
-                      
-                      {msg.buttons && msg.buttons.length > 0 && (
-                        <div className="mt-2 space-y-1">
-                          {msg.buttons.map((btn, btnIdx) => (
-                            <button
-                              key={btnIdx}
-                              onClick={() => handleButtonClick(btn.payload)}
-                              className="w-full px-2 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg text-xs transition-colors text-left"
-                            >
-                              {btn.title}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                    <span className="text-xs text-gray-400 mt-1 px-2">
-                      {msg.timestamp}
-                    </span>
-                  </div>
+                  <span className="text-xs text-gray-400 mt-1 px-2">{msg.timestamp}</span>
                 </div>
-              ))}
-              
-              {loading && (
-                <div className="flex gap-2">
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-600 to-purple-700 flex items-center justify-center">
-                    <Bot className="w-4 h-4 text-white" />
-                  </div>
-                  <div className="bg-white border border-gray-200 rounded-xl rounded-tl-none px-3 py-2 shadow-sm">
-                    <div className="flex gap-1.5">
-                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                    </div>
-                  </div>
-                </div>
-              )}
-              
-              <div ref={messagesEndRef} />
-            </div>
-
-            {/* Input Area - Altura fija */}
-            <div className="flex-none p-3 bg-white border-t">
+              </div>
+            ))}
+            {loading && (
               <div className="flex gap-2">
-                <input
-                  id="message-input"
-                  type="text"
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyPress={handleKeyPress}
-                  placeholder="Escribe tu mensaje..."
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                  disabled={loading || apiStatus === 'offline'}
-                />
-                <button
-                  onClick={sendMessage}
-                  disabled={loading || !input.trim() || apiStatus === 'offline'}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-                >
-                  {loading ? (
-                    <Loader className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Send className="w-4 h-4" />
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Panel Lateral - Ancho fijo con scroll interno */}
-          <div className={`${showSidebar ? 'block' : 'hidden'} lg:block w-full lg:w-80 flex-none overflow-y-auto space-y-3`}>
-            {/* API Info */}
-            <div className="bg-white rounded-xl shadow-lg p-4">
-              <h3 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
-                <Book className="w-4 h-4 text-blue-600" />
-                Estado del Sistema
-              </h3>
-              <div className="space-y-2 text-xs">
-                <div>
-                  <label className="text-gray-600 font-medium">Estado API:</label>
-                  <div className={`mt-1 px-2 py-1.5 rounded font-semibold ${
-                    apiStatus === 'online' ? 'bg-green-100 text-green-700' :
-                    apiStatus === 'offline' ? 'bg-red-100 text-red-700' :
-                    'bg-yellow-100 text-yellow-700'
-                  }`}>
-                    {getStatusText()}
+                <div className="w-8 h-8 bg-gradient-to-br from-indigo-600 to-purple-700 rounded-full flex items-center justify-center">
+                  <Bot className="w-4 h-4 text-white" />
+                </div>
+                <div className="bg-white border border-gray-200 rounded-xl px-3 py-2">
+                  <div className="flex gap-1.5">
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" />
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-150" />
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-300" />
                   </div>
                 </div>
-
-                <div>
-                  <label className="text-gray-600 font-medium">Session ID:</label>
-                  <div className="mt-1 px-2 py-1.5 bg-gray-100 rounded text-xs font-mono break-all">
-                    {sessionId.substring(0, 20)}...
-                  </div>
-                </div>
-
-                <button
-                  onClick={checkApiStatus}
-                  className="w-full mt-2 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors flex items-center justify-center gap-2 text-xs"
-                >
-                  <RefreshCw className="w-3 h-3" />
-                  Verificar Conexión
-                </button>
               </div>
-            </div>
-
-            {/* Quick Commands */}
-            <div className="bg-white rounded-xl shadow-lg p-4">
-              <h3 className="text-sm font-bold text-gray-800 mb-3">
-                Comandos Rápidos
-              </h3>
-              <div className="space-y-1.5">
-                {[
-                  'hola',
-                  'ver programas',
-                  'avalúos',
-                  'cuánto cuesta',
-                  'requisitos',
-                  'fechas de inscripción',
-                  'contactar asesor'
-                ].map((cmd, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => setInput(cmd)}
-                    className="w-full text-left px-2 py-1.5 bg-gray-50 hover:bg-blue-50 hover:text-blue-700 rounded-lg transition-colors text-xs"
-                  >
-                    {cmd}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Stats */}
-            <div className="bg-gradient-to-br from-blue-600 to-indigo-700 rounded-xl shadow-lg p-4 text-white">
-              <h3 className="text-sm font-bold mb-3">Estadísticas</h3>
-              <div className="space-y-2 text-xs">
-                <div className="flex justify-between">
-                  <span className="opacity-90">Total:</span>
-                  <span className="font-bold">{messages.length}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="opacity-90">Usuario:</span>
-                  <span className="font-bold">
-                    {messages.filter(m => m.sender === 'user').length}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="opacity-90">Bot:</span>
-                  <span className="font-bold">
-                    {messages.filter(m => m.sender === 'bot').length}
-                  </span>
-                </div>
-              </div>
-            </div>
+            )}
+            <div ref={messagesEndRef} />
           </div>
+
+          {/* Input */}
+          <form onSubmit={sendMessage} className="p-3 bg-white border-t flex gap-2">
+            <input
+              id="message-input"
+              type="text"
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onKeyPress={handleKeyPress}
+              placeholder="Escribe tu mensaje..."
+              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+              disabled={loading || apiStatus === 'offline'}
+            />
+            <button
+              type="submit"
+              disabled={loading || !input.trim() || apiStatus === 'offline'}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 flex items-center justify-center"
+            >
+              {loading ? <Loader className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+            </button>
+          </form>
         </div>
-      </div>
 
-      {/* Footer - Altura fija */}
-      <div className="flex-none py-2 text-center text-xs text-gray-600 bg-white/50">
+        {/* SIDEBAR (Drawer en móviles) */}
+        <aside
+          className={`fixed lg:static top-0 right-0 h-full lg:h-auto w-4/5 sm:w-2/5 lg:w-80 bg-white shadow-xl rounded-l-xl p-4 space-y-3 overflow-y-auto z-50 transform transition-transform duration-300 ${
+            showSidebar ? 'translate-x-0' : 'translate-x-full lg:translate-x-0'
+          }`}
+        >
+          {/* Cerrar en móvil */}
+          <button
+            onClick={() => setShowSidebar(false)}
+            className="lg:hidden absolute top-3 right-3 bg-gray-100 p-1 rounded-full"
+          >
+            <X className="w-5 h-5" />
+          </button>
+
+          {/* Estado del sistema */}
+          <div className="bg-white rounded-xl shadow-md p-4 border">
+            <h3 className="text-sm font-bold text-gray-800 mb-2 flex items-center gap-2">
+              <Book className="w-4 h-4 text-blue-600" /> Estado del Sistema
+            </h3>
+            <div className="text-xs space-y-2">
+              <div>
+                <label className="font-medium text-gray-600">Estado API:</label>
+                <div className={`mt-1 px-2 py-1 rounded font-semibold ${
+                  apiStatus === 'online' ? 'bg-green-100 text-green-700' :
+                  apiStatus === 'offline' ? 'bg-red-100 text-red-700' :
+                  'bg-yellow-100 text-yellow-700'
+                }`}>
+                  {getStatusText()}
+                </div>
+              </div>
+              <button
+                onClick={checkApiStatus}
+                className="w-full mt-2 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-lg text-xs flex items-center justify-center gap-2"
+              >
+                <RefreshCw className="w-3 h-3" /> Verificar conexión
+              </button>
+            </div>
+          </div>
+
+          {/* Comandos rápidos */}
+          <div className="bg-white rounded-xl shadow-md p-4 border">
+            <h3 className="text-sm font-bold mb-2">Comandos Rápidos</h3>
+            <div className="space-y-1.5">
+              {['hola', 'ver programas', 'requisitos', 'fechas', 'contactar asesor'].map((cmd, i) => (
+                <button
+                  key={i}
+                  onClick={() => setInput(cmd)}
+                  className="w-full text-left px-2 py-1.5 bg-gray-50 hover:bg-blue-50 rounded-lg text-xs"
+                >
+                  {cmd}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Stats */}
+          <div className="bg-gradient-to-br from-blue-600 to-indigo-700 rounded-xl p-4 text-white shadow-md">
+            <h3 className="text-sm font-bold mb-3">Estadísticas</h3>
+            <div className="text-xs space-y-1">
+              <div className="flex justify-between"><span>Total:</span><span>{messages.length}</span></div>
+              <div className="flex justify-between"><span>Usuario:</span><span>{messages.filter(m=>m.sender==='user').length}</span></div>
+              <div className="flex justify-between"><span>Bot:</span><span>{messages.filter(m=>m.sender==='bot').length}</span></div>
+            </div>
+          </div>
+        </aside>
+      </main>
+
+      {/* FOOTER */}
+      <footer className="text-center text-xs py-2 bg-white/60">
         <p>🎓 Universidad Distrital • Rasa 3.6 • {import.meta.env.MODE === 'production' ? '🚀 Producción' : '🔧 Desarrollo'}</p>
-      </div>
+      </footer>
+
+      {/* Overlay móvil */}
+      {showSidebar && (
+        <div
+          onClick={() => setShowSidebar(false)}
+          className="fixed inset-0 bg-black/30 backdrop-blur-sm lg:hidden"
+        />
+      )}
     </div>
   );
 }
