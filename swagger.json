@@ -1,0 +1,273 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Chatbot Postgrados UD - API",
+    "description": "Documentación completa de la API REST del Chatbot de Postgrados de la Universidad Distrital",
+    "version": "1.0.0",
+    "contact": {
+      "name": "Universidad Distrital",
+      "email": "postgrados@udistrital.edu.co"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://149.130.173.156:5005",
+      "description": "Servidor Producción (Oracle Cloud)"
+    },
+    {
+      "url": "http://localhost:5005",
+      "description": "Servidor Local"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Chat",
+      "description": "Endpoints para interactuar con el chatbot"
+    },
+    {
+      "name": "Status",
+      "description": "Endpoints de monitoreo y estado"
+    }
+  ],
+  "paths": {
+    "/": {
+      "get": {
+        "tags": ["Status"],
+        "summary": "Health Check del servidor Rasa",
+        "description": "Verifica que el servidor Rasa esté funcionando correctamente",
+        "responses": {
+          "200": {
+            "description": "Servidor funcionando correctamente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "version": {
+                      "type": "string",
+                      "example": "3.6.20"
+                    },
+                    "minimum_compatible_version": {
+                      "type": "string",
+                      "example": "3.0.0"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/webhooks/rest/webhook": {
+      "post": {
+        "tags": ["Chat"],
+        "summary": "Enviar mensaje al chatbot",
+        "description": "Endpoint principal para enviar mensajes al chatbot y recibir respuestas",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["sender", "message"],
+                "properties": {
+                  "sender": {
+                    "type": "string",
+                    "description": "ID único del usuario",
+                    "example": "user_123456"
+                  },
+                  "message": {
+                    "type": "string",
+                    "description": "Mensaje del usuario",
+                    "example": "Hola, quiero información sobre postgrados"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa del chatbot",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "recipient_id": {
+                        "type": "string",
+                        "example": "user_123456"
+                      },
+                      "text": {
+                        "type": "string",
+                        "example": "¡Bienvenido! 🎓 Soy tu asistente virtual de Postgrados..."
+                      },
+                      "buttons": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "title": {
+                              "type": "string"
+                            },
+                            "payload": {
+                              "type": "string"
+                            }
+                          }
+                        }
+                      },
+                      "image": {
+                        "type": "string",
+                        "nullable": true
+                      }
+                    }
+                  }
+                },
+                "examples": {
+                  "saludo": {
+                    "value": [
+                      {
+                        "recipient_id": "user_123456",
+                        "text": "¡Bienvenido! 🎓\n\nSoy tu asistente virtual de Postgrados de la Universidad.\n\n📚 ¿Qué programa te interesa?"
+                      }
+                    ]
+                  },
+                  "lista_programas": {
+                    "value": [
+                      {
+                        "recipient_id": "user_123456",
+                        "text": "📚 Programas de Postgrado Disponibles:\n\n1. Especialización en Avalúos\n2. Maestría en Bioingeniería\n3. Especialización en Proyectos Informáticos"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "500": {
+            "description": "Error interno del servidor"
+          }
+        }
+      }
+    },
+    "/model": {
+      "get": {
+        "tags": ["Status"],
+        "summary": "Obtener información del modelo actual",
+        "description": "Devuelve detalles sobre el modelo de ML entrenado actualmente en uso",
+        "responses": {
+          "200": {
+            "description": "Información del modelo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "model_file": {
+                      "type": "string",
+                      "example": "models/model.tar.gz"
+                    },
+                    "trained_at": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/conversations/{conversation_id}/tracker": {
+      "get": {
+        "tags": ["Chat"],
+        "summary": "Obtener historial de conversación",
+        "description": "Recupera el historial completo de una conversación específica",
+        "parameters": [
+          {
+            "name": "conversation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "ID de la conversación (sender)",
+            "example": "user_123456"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Historial de conversación",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "sender_id": {
+                      "type": "string"
+                    },
+                    "slots": {
+                      "type": "object"
+                    },
+                    "latest_message": {
+                      "type": "object"
+                    },
+                    "events": {
+                      "type": "array"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ChatRequest": {
+        "type": "object",
+        "required": ["sender", "message"],
+        "properties": {
+          "sender": {
+            "type": "string",
+            "description": "ID único del usuario"
+          },
+          "message": {
+            "type": "string",
+            "description": "Mensaje del usuario"
+          }
+        }
+      },
+      "ChatResponse": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "recipient_id": {
+              "type": "string"
+            },
+            "text": {
+              "type": "string"
+            },
+            "buttons": {
+              "type": "array"
+            },
+            "image": {
+              "type": "string",
+              "nullable": true
+            }
+          }
+        }
+      }
+    }
+  }
+}
