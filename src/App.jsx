@@ -1,5 +1,3 @@
-#ajustes
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Send, Bot, User, Loader, RefreshCw, Book, ChevronRight, X } from 'lucide-react';
 
